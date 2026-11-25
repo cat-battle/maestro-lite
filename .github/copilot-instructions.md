@@ -73,3 +73,27 @@ New tasks: `.maestro/tasks/_template.md`
 New handoffs: `.maestro/handoffs/_template.md`
 
 Always start from the template. Don't invent new document formats.
+
+---
+
+## Memory System
+
+This project uses a persistent memory system in `.maestro/memory/` to maintain project context across ephemeral Copilot sessions.
+
+### Memory Files
+
+| File | Purpose |
+|------|---------|
+| `.maestro/memory/context.md` | Project overview, tech stack, architecture, constraints |
+| `.maestro/memory/decisions.md` | Key decisions and rationale — do not relitigate |
+| `.maestro/memory/patterns.md` | Established conventions — follow these for consistency |
+| `.maestro/memory/lessons.md` | Hard-won lessons and gotchas — check before diving in |
+| `.maestro/memory/log/` | Daily session logs written by maestro |
+
+### How to Use Memory
+
+**At the start of every session:** Read all files in `.maestro/memory/` before doing any work. This is mandatory — it replaces the context you'd otherwise have to rebuild from scratch.
+
+**During a session:** When significant decisions, lessons, or patterns emerge, write them to the appropriate memory file. Don't let valuable discoveries disappear when the session ends.
+
+**Memory is project knowledge.** These files should be committed to the repo — they belong to the project, not to any individual agent or session.

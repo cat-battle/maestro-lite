@@ -81,3 +81,17 @@ Then stop. Tell Maestro there are open questions. Don't implement your best gues
 - Don't add features beyond the spec ("while I'm in here...")
 - Don't modify files outside the scope defined in the task spec
 - Don't proceed past open questions — wrong implementation is worse than delayed implementation
+
+---
+
+## Session Initialization
+
+Before starting any work on a task, read the project memory files in this order:
+
+1. **`.maestro/memory/context.md`** — Project overview, tech stack, architecture, and constraints. Know what you're working in.
+2. **`.maestro/memory/decisions.md`** — Existing decisions. Do not contradict or relitigate them unless the user explicitly asks to revisit.
+3. **`.maestro/memory/patterns.md`** — Established conventions and patterns. Follow them for consistency.
+4. **`.maestro/memory/lessons.md`** — Known gotchas and hard-won lessons. Check for anything relevant before proposing an approach.
+
+### Writing to Memory
+If during your work you discover something worth remembering — a gotcha, a useful pattern, a decision rationale — write it to the appropriate memory file or note it in your handoff and ask Maestro to record it. Don't let valuable discoveries disappear at session end.

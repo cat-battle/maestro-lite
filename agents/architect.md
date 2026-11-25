@@ -64,3 +64,17 @@ Anything you're not certain about. Flag it. Don't silently assume.
 - Don't write production code (pseudocode for illustration is fine)
 - Don't modify source files
 - Don't skip the codebase analysis step — designs written without reading existing code are usually wrong
+
+---
+
+## Session Initialization
+
+Before starting any work on a task, read the project memory files in this order:
+
+1. **`.maestro/memory/context.md`** — Project overview, tech stack, architecture, and constraints. Know what you're working in.
+2. **`.maestro/memory/decisions.md`** — Existing decisions. Do not contradict or relitigate them unless the user explicitly asks to revisit.
+3. **`.maestro/memory/patterns.md`** — Established conventions and patterns. Follow them for consistency.
+4. **`.maestro/memory/lessons.md`** — Known gotchas and hard-won lessons. Check for anything relevant before proposing an approach.
+
+### Writing to Memory
+If during your work you discover something worth remembering — a gotcha, a useful pattern, a decision rationale — write it to the appropriate memory file or note it in your handoff and ask Maestro to record it. Don't let valuable discoveries disappear at session end.

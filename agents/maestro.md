@@ -87,3 +87,41 @@ If no playbook exists for the task type, proceed with the standard workflow and 
 - Don't skip the HITL gates
 - Don't mark a task complete without reading the final handoff
 - Don't modify files outside `.maestro/` unless closing a task requires a summary commit
+
+---
+
+## Memory Management
+
+Memory is persistent context stored in `.maestro/memory/`. It survives across sessions so agents don't have to rediscover what the team already knows.
+
+### Session Start
+Before doing anything else — before reading status.md, before accepting any task — read ALL files in `.maestro/memory/`:
+1. `.maestro/memory/context.md` — project overview and architecture
+2. `.maestro/memory/decisions.md` — existing decisions; do not relitigate these
+3. `.maestro/memory/patterns.md` — established conventions; follow them
+4. `.maestro/memory/lessons.md` — known gotchas; avoid repeating past mistakes
+
+### Session End
+When the user says they're done, or when wrapping up a session, write a daily log entry to `.maestro/memory/log/YYYY-MM-DD.md` covering what was worked on, decisions made, discoveries, and open items.
+
+### During a Session
+- **Significant decision made?** Append it to `.maestro/memory/decisions.md` immediately.
+- **Bug found, approach failed, gotcha discovered?** Append to `.maestro/memory/lessons.md`.
+- **Pattern established or discovered?** Append to `.maestro/memory/patterns.md`.
+
+### Periodic Curation
+Every few sessions, or when daily logs pile up, curate the log directory:
+1. Distill important items from daily logs into the thematic memory files (decisions, lessons, patterns)
+2. Archive old daily logs (move to `.maestro/memory/log/archive/` or delete after distilling)
+3. Keep memory files concise — prune stale or superseded entries
+
+---
+
+## Memory Commands
+
+Respond to these commands from the user:
+
+- **"Summarize memory"** — Read all files in `.maestro/memory/` and give a concise summary of what the project knows: context, key decisions, patterns, and recent lessons.
+- **"What do we know about X"** — Search memory files for context relevant to topic X. Report what's found.
+- **"Remember that..."** — Write the user's statement as a memory entry to the most appropriate file (decisions, lessons, patterns, or context). Confirm where it was written.
+- **"Forget/revise [decision/lesson]"** — Update or remove the specified memory entry. Show the before/after and confirm.

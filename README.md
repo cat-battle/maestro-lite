@@ -217,6 +217,88 @@ See `examples/sample-task.md` for a fully worked example with all files filled i
 
 ---
 
+
+---
+
+## Memory System
+
+Copilot agents are ephemeral — every session starts fresh with no memory of previous work. The memory system solves this by storing project knowledge in files that persist across sessions.
+
+### What It Is
+
+A directory of plain markdown files in `.maestro/memory/` that capture the context agents need to work effectively: what the project is, what decisions have been made and why, what patterns to follow, and what mistakes to avoid.
+
+### Memory Directory Structure
+
+```
+.maestro/memory/
+├── context.md      ← Project overview, tech stack, architecture, constraints
+├── decisions.md    ← Key decisions and their rationale
+├── lessons.md      ← Hard-won lessons and gotchas
+├── patterns.md     ← Established conventions and preferred approaches
+└── log/
+    └── YYYY-MM-DD.md  ← Daily session logs (written by maestro)
+```
+
+#### What Each File Is For
+
+| File | What goes in it |
+|------|----------------|
+| **context.md** | Project description, tech stack, team norms, key dependencies, architecture notes — the essential briefing for any agent starting fresh |
+| **decisions.md** | Architectural and design decisions, with the reasoning. Agents: don't relitigate these unless explicitly asked to revisit. |
+| **lessons.md** | Things discovered the hard way: bugs with non-obvious root causes, approaches that failed, gotchas in the codebase or toolchain. |
+| **patterns.md** | Conventions and patterns the team has established or discovered: how errors are handled, how certain types of changes are structured, naming conventions. |
+| **log/** | Daily session logs created by maestro. Record of what was worked on, decisions made, and open items. |
+
+### How Agents Use Memory
+
+**Session start:** Every agent reads all memory files before doing any work. This is not optional — it replaces the context-building that would otherwise waste the first part of every session.
+
+**During work:** When a significant decision is made, a lesson is learned, or a pattern is established, the agent (or maestro) writes it to the appropriate memory file immediately — not at the end, when it might be forgotten.
+
+**Session end:** Maestro writes a daily log entry summarizing what was worked on, what was decided, what was discovered, and what's left open.
+
+### Daily Log Format
+
+Maestro creates `.maestro/memory/log/YYYY-MM-DD.md` at the end of each work session:
+
+```markdown
+# Session Log — YYYY-MM-DD
+
+## Tasks Worked On
+- [Task IDs and brief descriptions]
+
+## Key Decisions
+- [Any decisions made — also add to decisions.md]
+
+## Discoveries
+- [Gotchas found, patterns identified — also add to respective memory files]
+
+## Open Items
+- [Things left unfinished, blockers, follow-ups needed]
+```
+
+Daily logs are periodically distilled into the thematic memory files (decisions, lessons, patterns) and then archived. This keeps the memory files authoritative and concise without losing the historical record.
+
+### Memory Commands
+
+Talk to `@maestro` to manage memory:
+
+| Command | What it does |
+|---------|-------------|
+| **"Summarize memory"** | Reads all memory files and gives you a concise summary of what the project knows |
+| **"What do we know about X"** | Searches memory files for context relevant to topic X |
+| **"Remember that..."** | Writes your statement to the appropriate memory file and confirms where |
+| **"Forget/revise [decision/lesson]"** | Updates or removes a memory entry; shows before/after |
+
+### Tips
+
+- **Keep memory files concise.** A dense, relevant 300-word file is more useful than a 3,000-word dump. Prune stale entries.
+- **Use the established formats.** Each file has a comment block showing the expected entry format. Follow it.
+- **Let maestro curate.** Don't worry about keeping memory perfectly tidy during a session. Maestro handles periodic curation.
+- **Commit memory files.** These are project knowledge, not personal notes. They belong in the repo and should be reviewed like any other documentation.
+
+
 ## See Also
 
 - `examples/sample-task.md` — A complete task flow with all files filled in (API authentication example)

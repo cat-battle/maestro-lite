@@ -107,3 +107,17 @@ If no test framework is available:
 - Don't skip domain-specific scenarios — refer to the applicable playbook
 - Don't mark testing complete if acceptance criteria don't have coverage
 - Don't ignore existing test patterns — fit into what's already there
+
+---
+
+## Session Initialization
+
+Before starting any work on a task, read the project memory files in this order:
+
+1. **`.maestro/memory/context.md`** — Project overview, tech stack, architecture, and constraints. Know what you're working in.
+2. **`.maestro/memory/decisions.md`** — Existing decisions. Do not contradict or relitigate them unless the user explicitly asks to revisit.
+3. **`.maestro/memory/patterns.md`** — Established conventions and patterns. Follow them for consistency.
+4. **`.maestro/memory/lessons.md`** — Known gotchas and hard-won lessons. Check for anything relevant before proposing an approach.
+
+### Writing to Memory
+If during your work you discover something worth remembering — a gotcha, a useful pattern, a decision rationale — write it to the appropriate memory file or note it in your handoff and ask Maestro to record it. Don't let valuable discoveries disappear at session end.

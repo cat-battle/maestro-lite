@@ -269,3 +269,65 @@ _None yet_
 - 2026-11-22: Implementation complete, one major finding in review (Bearer prefix check)
 - 2026-11-23: Review finding fixed, re-review passed. Testing in progress.
 ```
+
+---
+
+## Memory Entries After This Task
+
+Here's what maestro would write to the memory files at the end of this task. These entries carry the project's knowledge forward into future sessions.
+
+### `.maestro/memory/decisions.md` — New Entry
+
+```markdown
+## [2026-11-23] JWT Over Session Tokens for API Authentication
+**Context:** Needed to add authentication to the REST API. Evaluated stateful session tokens (server-side session store) vs. stateless JWT.
+**Decision:** Use JWT with 24-hour expiry, loaded via `jsonwebtoken` library.
+**Rationale:** The API is stateless by design. JWTs allow horizontal scaling without a shared session store. The existing `jsonwebtoken` library was already a dependency.
+**Alternatives Considered:** Server-side sessions (rejected: requires shared session store, adds infrastructure); opaque API keys (rejected: no built-in expiry, harder to rotate).
+**Status:** Active
+```
+
+### `.maestro/memory/patterns.md` — New Entry
+
+```markdown
+## Authentication Middleware Pattern
+**When to use:** Any endpoint that requires a valid authenticated user.
+**Implementation:** Import `authenticateToken` from `src/middleware/auth.js` and apply it as route-level middleware — not router-level — so public and protected routes can coexist on the same router.
+**Example:**
+```javascript
+const { authenticateToken } = require('../middleware/auth');
+router.get('/profile', authenticateToken, profileHandler);
+router.get('/public-info', publicHandler); // no middleware
+```
+**Rationale:** Route-level application keeps public endpoints accessible without splitting routers by auth status.
+```
+
+### `.maestro/memory/lessons.md` — New Entry
+
+```markdown
+## [2026-11-22] Authorization Header Format Not Validated
+**What happened:** Reviewer caught that the initial implementation split the Authorization header without first checking it started with "Bearer ". A "Basic xyz" header would pass malformed input to jwt.verify instead of returning a clean 401.
+**Root cause:** Assumed the header format would always be correct; didn't consider non-Bearer schemes.
+**Lesson:** When parsing structured header values, always validate the scheme prefix before splitting. Use `header.startsWith('Bearer ')` before extracting the token.
+**Tags:** #security #http #input-validation
+```
+
+### `.maestro/memory/log/2026-11-23.md` — Session Log
+
+```markdown
+# Session Log — 2026-11-23
+
+## Tasks Worked On
+- Task 001: Add JWT authentication middleware
+
+## Key Decisions
+- Chose JWT over session tokens (see decisions.md)
+
+## Discoveries
+- Must validate Authorization header scheme prefix before splitting (see lessons.md)
+- Added authentication middleware pattern to patterns.md
+
+## Open Items
+- Token refresh not yet implemented — tracked as future task
+- Operations team needs to be notified before rotating JWT_SECRET (invalidates all active tokens)
+```
