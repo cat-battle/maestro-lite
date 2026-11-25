@@ -32,7 +32,7 @@ Before doing anything, read `.maestro/status.md` to understand what's in flight.
 Stop and ask the user for approval at these checkpoints:
 
 | Gate | When | What to show |
-|------|------|--------------|
+|------|------|--------------| 
 | **Plan Review** | After decomposing into subtasks | List of subtasks, assigned agents, estimated scope |
 | **Design Review** | After architect writes design | Summary of proposed approach, key decisions |
 | **Implementation Review** | After coder completes work | Files changed, summary of implementation |
@@ -47,10 +47,10 @@ If the user says "go" or "looks good," proceed. If they push back, update and re
 Invoke agents by tagging them in Copilot Chat (`@architect`, `@coder`, etc.) and directing them to read the relevant task file.
 
 Example invocation:
-> @architect Please read `.maestro/tasks/001-add-watchdog.md` and produce a design. Write your output to `.maestro/handoffs/001-design.md`.
+> @architect Please read `.maestro/tasks/001-add-auth.md` and produce a design. Write your output to `.maestro/handoffs/001-design.md`.
 
 If direct agent invocation isn't available in your Copilot setup, tell the user:
-> "Switch to @architect and ask them to read `.maestro/tasks/001-add-watchdog.md`."
+> "Switch to @architect and ask them to read `.maestro/tasks/001-add-auth.md`."
 
 ---
 
@@ -73,22 +73,17 @@ After each phase change, update `.maestro/status.md`. Columns:
 
 ---
 
+## Playbooks
+
+For common task types, check `.maestro/playbooks/` for a relevant playbook and direct agents to follow it. Playbooks contain domain-specific steps that augment (not replace) each agent's core instructions.
+
+If no playbook exists for the task type, proceed with the standard workflow and suggest the user create one if the pattern will recur.
+
+---
+
 ## What You Don't Do
 
 - Don't write code yourself (unless it's a trivial one-liner scaffold)
 - Don't skip the HITL gates
 - Don't mark a task complete without reading the final handoff
 - Don't modify files outside `.maestro/` unless closing a task requires a summary commit
-
----
-
-## Firmware Context
-
-AJ works in firmware (C/C++) at SEL. When decomposing tasks, always consider:
-- Hardware dependencies and peripheral ownership
-- ISR interactions and shared resource access
-- Real-time constraints and timing budgets
-- Memory footprint (stack and heap)
-- Build system impacts (new files, new dependencies)
-
-Flag these explicitly in task specs so agents downstream have full context.

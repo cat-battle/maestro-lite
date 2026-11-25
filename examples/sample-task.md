@@ -1,45 +1,44 @@
-# Example: Add Watchdog Timer Support to Sensor Module
+# Example: Add User Authentication to the API
 
 This example shows what a complete Maestro-lite task flow looks like, end to end. All files are shown as they'd actually appear after each phase.
 
 ---
 
-## Task Spec: `.maestro/tasks/001-watchdog-sensor.md`
+## Task Spec: `.maestro/tasks/001-user-auth.md`
 
 ```markdown
-# Task 001: Add Watchdog Timer Support to Sensor Module
+# Task 001: Add User Authentication to the API
 
 ## Objective
-Add watchdog timer kicking to the sensor acquisition loop so that a hung sensor read does not prevent the watchdog from firing and resetting the system.
+Add JWT-based authentication to the REST API so that protected endpoints require a valid token. Unauthenticated requests should receive a 401 response.
 
 ## Context
-The system uses an independent watchdog timer (IWDG) with a 2-second timeout. The sensor module's acquisition loop blocks on I2C reads, which can hang indefinitely if the sensor becomes unresponsive. Currently, the main loop kicks the watchdog, but if the sensor thread blocks, the watchdog is not kicked and the system does not reset as intended.
+The API currently has no authentication. All endpoints are publicly accessible. We need to protect user-specific endpoints (`/users/:id`, `/orders`, `/profile`) while keeping public endpoints (`/products`, `/health`) open.
 
 ## Scope
 - **Files in scope:**
-  - `src/sensor/sensor.c`
-  - `src/sensor/sensor.h`
-  - `src/watchdog/watchdog.h` (read-only — do not modify)
+  - `src/middleware/auth.js`  (create new)
+  - `src/routes/users.js`
+  - `src/routes/orders.js`
+  - `src/routes/profile.js`
+  - `src/config/index.js`  (add JWT_SECRET config key)
+  - `tests/middleware/auth.test.js`  (create new)
 - **Files out of scope:**
-  - `src/watchdog/watchdog.c` (owned by platform team)
-  - Any RTOS configuration files
+  - `src/routes/products.js`  (stays public)
+  - `src/routes/health.js`  (stays public)
+  - Database schema files  (no schema changes in this task)
 
 ## Acceptance Criteria
-- [ ] Sensor acquisition loop kicks the watchdog on every successful iteration
-- [ ] If I2C read exceeds 500ms timeout, acquisition returns an error (does not block indefinitely)
-- [ ] Watchdog is NOT kicked on a failed/timed-out read (let it fire)
-- [ ] No watchdog kicks occur inside ISR context
+- [ ] Protected endpoints return 401 when no token is provided
+- [ ] Protected endpoints return 401 when an invalid or expired token is provided
+- [ ] Protected endpoints return 200 with correct data when a valid token is provided
+- [ ] Public endpoints continue to work without a token
+- [ ] Tokens expire after 24 hours
 
 ## Constraints
-- Use the existing `watchdog_kick()` API from `watchdog.h` — do not access IWDG registers directly
-- I2C timeout must use the existing HAL timeout mechanism, not a software timer
-- No dynamic memory allocation
-
-## Firmware Notes
-- **Hardware dependencies:** STM32 IWDG, I2C1 peripheral
-- **ISR interactions:** I2C completion uses DMA interrupt; sensor task runs at thread priority
-- **Timing requirements:** Watchdog timeout is 2000ms; sensor loop target period is 100ms
-- **Memory budget:** No new static buffers > 32 bytes
+- Use the existing `jsonwebtoken` library (already in package.json)
+- JWT secret must be loaded from environment variable `JWT_SECRET`, never hardcoded
+- Middleware must be applied per-route, not globally (to preserve public endpoints)
 
 ## Priority
 High
@@ -73,65 +72,58 @@ architect
 coder
 
 ## Summary
-The sensor module needs two changes: a timeout on its I2C blocking read, and a watchdog kick on successful reads. The existing HAL_I2C_Master_Receive_IT() pattern already supports timeout via HAL_GetTick() polling; we extend it. The watchdog_kick() API is already exposed; we call it in the right place.
+Add a JWT authentication middleware and apply it to the three protected route files. The middleware validates the Authorization header, verifies the token, and either attaches the decoded user to the request or returns 401. No database calls in the middleware — token validation is stateless.
 
 ## Overview
-The sensor acquisition loop in sensor.c calls a blocking I2C read. If the sensor hangs, this call never returns and the watchdog fires (which is correct behavior). However, the current implementation blocks indefinitely — we want a 500ms timeout so the error can be logged before the reset.
-
-We add:
-1. A timeout wrapper around the I2C read
-2. A watchdog kick on successful read completion
-3. No kick on timeout/error (intentional — let watchdog fire)
+We need a reusable Express middleware function that validates JWT tokens. It reads the `Authorization: Bearer <token>` header, verifies the token using `jsonwebtoken`, and either attaches the decoded payload to `req.user` or sends a 401. Protected routes require this middleware; public routes do not.
 
 ## File / Module Layout
 
-**sensor.c** — two changes:
-- `sensor_read_raw()`: add 500ms timeout using HAL_GetTick() delta
-- `sensor_acquire()`: add `watchdog_kick()` call after successful read
+**`src/middleware/auth.js`** (new file)
+- Export a single middleware function: `authenticateToken(req, res, next)`
+- Reads `Authorization` header, extracts Bearer token
+- Verifies with `jwt.verify(token, process.env.JWT_SECRET)`
+- On success: attaches decoded payload to `req.user`, calls `next()`
+- On failure: responds 401 with `{ error: "Unauthorized" }`
 
-**sensor.h** — no interface changes required
+**`src/routes/users.js`**, **`orders.js`**, **`profile.js`** (modify)
+- Import `authenticateToken` from `../middleware/auth`
+- Apply as route-level middleware on protected endpoints
+
+**`src/config/index.js`** (modify)
+- Add `JWT_SECRET: process.env.JWT_SECRET` to config exports
+- Add validation: throw on startup if `JWT_SECRET` is not set
 
 ## Interfaces and APIs
 
-Existing (unchanged):
-```c
-// watchdog.h
-void watchdog_kick(void);
-
-// Existing sensor interface (unchanged)
-sensor_status_t sensor_acquire(sensor_data_t *data);
-```
-
-New internal timeout constant in sensor.c:
-```c
-#define SENSOR_I2C_TIMEOUT_MS  (500U)
-```
-
-Modified internal function signature (no header change needed):
-```c
-// Before: blocks indefinitely
-static sensor_status_t sensor_read_raw(uint8_t *buf, uint16_t len);
-
-// After: returns SENSOR_TIMEOUT if read exceeds SENSOR_I2C_TIMEOUT_MS
-static sensor_status_t sensor_read_raw(uint8_t *buf, uint16_t len);
+```javascript
+// src/middleware/auth.js
+function authenticateToken(req, res, next)
+// Attaches req.user = { id, email, role } on success
+// Sends 401 on missing/invalid/expired token
 ```
 
 ## Data Flow
 
-1. `sensor_acquire()` calls `sensor_read_raw()`
-2. `sensor_read_raw()` initiates I2C transfer via HAL, polls for completion with timeout
-3. On success → returns SENSOR_OK → `sensor_acquire()` calls `watchdog_kick()` → returns data
-4. On timeout → returns SENSOR_TIMEOUT → `sensor_acquire()` returns error → NO watchdog kick
+1. Request arrives at protected route
+2. `authenticateToken` middleware runs first
+3. Extracts token from `Authorization: Bearer <token>` header
+4. Calls `jwt.verify(token, JWT_SECRET)`
+5. Success → `req.user = decoded payload` → `next()` → route handler runs
+6. Failure (missing, malformed, expired) → `res.status(401).json({ error: "Unauthorized" })`
 
-## Firmware-Specific Considerations
-- **Memory:** `SENSOR_I2C_TIMEOUT_MS` is a compile-time constant. No new buffers.
-- **Timing:** 500ms timeout < 2000ms watchdog. A timed-out read will NOT kick watchdog; system resets on next watchdog expiry.
-- **ISR Safety:** `watchdog_kick()` and `HAL_GetTick()` are both safe to call from thread context. The I2C completion interrupt only sets a flag; we poll it in the loop.
-- **Peripheral Ownership:** No change to I2C ownership.
+## Dependencies
+- `jsonwebtoken` (already installed)
+- `process.env.JWT_SECRET` (must be set in environment)
+
+## Domain-Specific Considerations
+- **Secret management:** JWT_SECRET must never be hardcoded. Validate it exists at startup, not at first request.
+- **Token expiry:** Use `jwt.verify` built-in expiry check — do not manually check `exp` claim.
+- **Error messages:** Return generic "Unauthorized" — do not reveal whether the token was missing vs. expired vs. invalid (avoid information leakage).
 
 ## Risks and Open Questions
-- Confirmed with platform team: `watchdog_kick()` is thread-safe.
-- HAL_GetTick() rollover at ~49 days: use subtraction, not comparison, to handle rollover correctly.
+- Token refresh is out of scope for this task (tracked as future task).
+- If JWT_SECRET is rotated, all existing tokens are invalidated — operations team is aware.
 ```
 
 ---
@@ -148,21 +140,22 @@ coder
 reviewer
 
 ## Summary
-Implemented per design. Added 500ms I2C timeout in sensor_read_raw() using HAL_GetTick() with rollover-safe arithmetic. Added watchdog_kick() in sensor_acquire() on success path only. No deviation from design.
+Implemented per design. Created auth middleware, applied to three route files, added config validation. No deviations from design.
 
 ## Artifacts
-- `src/sensor/sensor.c` — Modified sensor_read_raw() and sensor_acquire()
-- `src/sensor/sensor.h` — Unchanged (no interface changes needed)
+- `src/middleware/auth.js` — New file, implements `authenticateToken`
+- `src/routes/users.js` — Added `authenticateToken` middleware to 3 routes
+- `src/routes/orders.js` — Added `authenticateToken` middleware to 2 routes
+- `src/routes/profile.js` — Added `authenticateToken` middleware to all routes
+- `src/config/index.js` — Added JWT_SECRET validation on startup
 
 ## Key Implementation Notes
-- Used `(uint32_t)(HAL_GetTick() - start_tick) >= SENSOR_I2C_TIMEOUT_MS` for rollover-safe timeout check
-- watchdog_kick() placed immediately after NULL check on data pointer and before data copy, so it only fires on a good read
-- Added SENSOR_TIMEOUT to sensor_status_t enum (was missing; needed for clean error propagation)
+- Used `try/catch` around `jwt.verify` to handle all error cases uniformly
+- Startup validation throws `Error("JWT_SECRET environment variable is required")` if not set
+- Error response is always `{ error: "Unauthorized" }` regardless of failure reason (no info leak)
+- Applied middleware at route level, not router level, to allow mixed auth on same router
 
 ## No Deviations from Design
-
-## Build
-Compiles clean on STM32G4 target with `-Wall -Werror -O2`.
 ```
 
 ---
@@ -170,25 +163,25 @@ Compiles clean on STM32G4 target with `-Wall -Werror -O2`.
 ## Review Handoff: `.maestro/handoffs/001-review.md`
 
 ```markdown
-# Review: Task 001 — Watchdog Sensor
+# Review: Task 001 — User Authentication
 
 **Verdict:** CHANGES_REQUESTED
 
 ## Summary
-Implementation is correct in approach. One major finding: missing volatile on the DMA completion flag that the timeout loop polls. One minor: timeout constant should be in sensor.h (or a shared config) for testability.
+Implementation is correct and well-structured. One major finding: the `Authorization` header parsing doesn't handle the case where the header exists but has the wrong format (e.g., "Basic xyz" instead of "Bearer xyz"). One minor: the startup validation error message should include the config key name.
 
 ## Findings
 
 ### FINDING-001 [Severity: major]
-**File:** src/sensor/sensor.c:87
-**Description:** `i2c_complete_flag` is set by the DMA interrupt handler but declared without `volatile`. The compiler may optimize the polling loop to never re-read it.
-**Impact:** Polling loop may spin forever even after DMA completes, always timing out.
-**Suggested Fix:** Declare as `static volatile uint8_t i2c_complete_flag = 0;`
+**File:** src/middleware/auth.js:12
+**Description:** Code does `const token = authHeader.split(' ')[1]` without checking that `authHeader` starts with "Bearer ". If the header is "Basic xyz", this silently passes a wrong token to `jwt.verify` instead of returning 401 immediately.
+**Impact:** Unexpected error from jwt.verify rather than a clean 401. Could leak internal error details depending on error handling.
+**Suggested Fix:** Check `authHeader.startsWith('Bearer ')` before splitting.
 
-### FINDING-002 [Severity: nit]
-**File:** src/sensor/sensor.c:34
-**Description:** `SENSOR_I2C_TIMEOUT_MS` defined as plain `#define 500U`. Not testable or tunable.
-**Suggested Fix:** Move to sensor.h or a config header; annotate the acceptable range in a comment.
+### FINDING-002 [Severity: minor]
+**File:** src/config/index.js:8
+**Description:** Error message says "Required environment variable is not set" without naming the variable.
+**Suggested Fix:** `throw new Error("Required environment variable JWT_SECRET is not set")`
 ```
 
 ---
@@ -196,55 +189,61 @@ Implementation is correct in approach. One major finding: missing volatile on th
 ## Test Plan: `.maestro/handoffs/001-tests.md`
 
 ```markdown
-# Test Plan: Task 001 — Watchdog Sensor
+# Test Plan: Task 001 — User Authentication
 
 ## Acceptance Criteria Coverage
 | Criterion | Test Cases |
 |-----------|-----------|
-| Watchdog kicked on successful read | TC-001 |
-| I2C timeout returns error after 500ms | TC-002, TC-003 |
-| Watchdog NOT kicked on failed read | TC-004 |
-| No watchdog kick in ISR context | TC-005 (static analysis + review) |
+| Protected → 401 with no token | TC-001 |
+| Protected → 401 with invalid/expired token | TC-002, TC-003 |
+| Protected → 200 with valid token | TC-004 |
+| Public endpoints still work | TC-005 |
+| Tokens expire after 24 hours | TC-006 |
 
 ## Test Cases
 
-### TC-001: Watchdog kick on success
-**Type:** Unit (with mocks)
-**Setup:** Mock HAL_I2C returning success, mock watchdog_kick() with call counter
+### TC-001: No token returns 401
+**Type:** Integration
+**Setup:** Test server running, no Authorization header
 **Steps:**
-1. Call sensor_acquire() with valid data pointer
-2. Check watchdog_kick() was called exactly once
-**Pass Criteria:** watchdog_kick() call count == 1
+1. GET /users/123 with no Authorization header
+**Expected Result:** 401 with body `{ error: "Unauthorized" }`
 
-### TC-002: I2C timeout triggers after ~500ms
-**Type:** Integration (hardware)
-**Setup:** Disconnect sensor I2C lines (pull SDA low to simulate hang)
+### TC-002: Invalid token returns 401
+**Type:** Integration
+**Setup:** Test server running
 **Steps:**
-1. Record timestamp
-2. Call sensor_acquire()
-3. Record timestamp on return
-**Pass Criteria:** Returns SENSOR_TIMEOUT, elapsed time 500ms–600ms
+1. GET /users/123 with `Authorization: Bearer notarealtoken`
+**Expected Result:** 401 with body `{ error: "Unauthorized" }`
 
-### TC-003: Timeout rollover (HAL_GetTick near UINT32_MAX)
+### TC-003: Expired token returns 401
 **Type:** Unit
-**Setup:** Mock HAL_GetTick() to return UINT32_MAX - 100 at start
+**Setup:** Generate a token with `expiresIn: -1` (already expired)
 **Steps:**
-1. Call sensor_read_raw() with mocked tick starting near rollover
-2. Have mock advance tick by 600 (rolling over)
-**Pass Criteria:** Returns SENSOR_TIMEOUT correctly (not prematurely or never)
+1. Call `authenticateToken` middleware with expired token
+**Expected Result:** Calls `res.status(401)`, does NOT call `next()`
 
-### TC-004: No watchdog kick on timeout
+### TC-004: Valid token passes through
 **Type:** Unit
-**Setup:** Mock HAL_I2C to never complete, mock watchdog_kick() with call counter
+**Setup:** Generate a valid token signed with test JWT_SECRET
 **Steps:**
-1. Call sensor_acquire(), wait for timeout
-2. Check watchdog_kick() call count
-**Pass Criteria:** watchdog_kick() call count == 0
+1. Call `authenticateToken` middleware with valid token
+2. Check that `req.user` is populated and `next()` is called
+**Expected Result:** `req.user.id` matches token payload, `next()` called once
 
-### TC-005: ISR context review
-**Type:** Static / Code Review
-**Steps:** Confirm watchdog_kick() is not called from any interrupt handler in sensor.c
-**Pass Criteria:** No call sites in ISR context (confirmed in review)
+### TC-005: Public endpoints unaffected
+**Type:** Integration
+**Steps:**
+1. GET /products with no Authorization header
+**Expected Result:** 200 with product data (not 401)
+
+### TC-006: 24-hour expiry
+**Type:** Unit
+**Setup:** Inspect token generated by login route
+**Steps:**
+1. Decode token (without verifying) and inspect `exp` claim
+2. Check that `exp - iat == 86400` (24 hours in seconds)
+**Expected Result:** Expiry is exactly 24 hours from issue time
 ```
 
 ---
@@ -259,14 +258,14 @@ This is what `.maestro/status.md` looks like partway through:
 ## Active Tasks
 | ID | Task | Status | Assigned | Phase |
 |----|------|--------|----------|-------|
-| 001 | Add watchdog to sensor module | In Progress | tester | Testing |
+| 001 | Add user authentication to API | In Progress | tester | Testing |
 
 ## Completed Tasks
 _None yet_
 
 ## Notes
-- 2026-11-20: Task 001 opened — watchdog kicked into sensor acquisition
+- 2026-11-20: Task 001 opened — JWT auth middleware
 - 2026-11-21: Design complete, approved at Design Review gate
-- 2026-11-22: Implementation complete, one major finding in review (volatile missing)
+- 2026-11-22: Implementation complete, one major finding in review (Bearer prefix check)
 - 2026-11-23: Review finding fixed, re-review passed. Testing in progress.
 ```

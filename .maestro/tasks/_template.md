@@ -4,7 +4,7 @@
 [What needs to be done — be specific. One paragraph.]
 
 ## Context
-[Why this task exists. Background info that agents will need. Reference relevant subsystems, hardware, or prior decisions.]
+[Why this task exists. Background info that agents will need. Reference relevant subsystems, services, or prior decisions.]
 
 ## Scope
 - **Files in scope:** [List every file that may be created or modified]
@@ -16,14 +16,8 @@
 - [ ] [Criterion 3]
 
 ## Constraints
-- [Technical constraints: memory limits, timing requirements, API compatibility]
+- [Technical constraints: performance targets, API compatibility, platform requirements]
 - [Process constraints: coding standards, review requirements]
-
-## Firmware Notes
-- **Hardware dependencies:** [Peripherals, registers, pins]
-- **ISR interactions:** [Any interrupt context involvement]
-- **Timing requirements:** [Hard deadlines, polling intervals]
-- **Memory budget:** [Stack/heap constraints if known]
 
 ## Priority
 [Critical / High / Medium / Low]

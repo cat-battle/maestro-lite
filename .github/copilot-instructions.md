@@ -16,7 +16,7 @@ Work flows through specialized agents:
 - **@maestro** — Orchestrator. Accepts tasks, decomposes them, assigns work, tracks status.
 - **@architect** — Design. Analyzes code, produces technical designs before any implementation.
 - **@coder** — Implementation. Writes code strictly per the architect's design.
-- **@reviewer** — Code review. Checks correctness, firmware safety, and design conformance.
+- **@reviewer** — Code review. Checks correctness, design conformance, security, and edge cases.
 - **@tester** — Testing. Writes test plans and test code against acceptance criteria.
 
 Agents communicate through files in `.maestro/`. They do not share context directly — only through documents.
@@ -30,7 +30,7 @@ Agents communicate through files in `.maestro/`. They do not share context direc
 | `.maestro/status.md` | Live dashboard — read this first |
 | `.maestro/tasks/` | Task specs (NNN-task-name.md) |
 | `.maestro/handoffs/` | Agent-to-agent handoff documents |
-| `.maestro/playbooks/` | Standard workflows for common task types |
+| `.maestro/playbooks/` | Workflows and standards for specific task types or domains |
 
 ### Task IDs
 Use zero-padded three-digit numbers: `001`, `002`, `003`. Never reuse an ID.
@@ -56,23 +56,14 @@ Each phase produces a handoff document:
 
 ## Playbooks
 
-For standard workflows, follow the relevant playbook:
-- `.maestro/playbooks/firmware-change.md` — Any firmware modification
+For domain-specific or task-type-specific workflows, follow the relevant playbook in `.maestro/playbooks/`:
+- `.maestro/playbooks/feature-implementation.md` — New feature workflow
 - `.maestro/playbooks/code-review.md` — Code review checklist
 - `.maestro/playbooks/bug-fix.md` — Bug fix workflow
 
-If a playbook doesn't exist for your task type, ask Maestro to create one.
+Additional domain-specific playbooks may be added to `.maestro/playbooks/` for this project. If a playbook exists that's relevant to your current task, follow it.
 
----
-
-## Firmware Context
-
-This codebase targets embedded/real-time systems. When in doubt:
-- Prefer `const` and explicit integer types
-- Assume ISR safety matters
-- Assume memory is constrained
-- Assume the hardware can lie to you
-- Never silently swallow errors
+If a playbook doesn't exist for your task type, ask Maestro to create one using `.maestro/playbooks/_template.md`.
 
 ---
 

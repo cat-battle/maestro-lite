@@ -1,6 +1,6 @@
 # Playbook: Code Review
 
-Use this checklist for reviewing firmware and embedded C/C++ code. Each section is a gate — don't mark a section clean unless you've actually checked it.
+Use this checklist when reviewing any code change. Each section is a gate — don't mark a section clean unless you've actually checked it.
 
 ---
 
@@ -23,61 +23,48 @@ Before reviewing, read:
 - [ ] Are all edge cases handled?
 - [ ] Is logic correct — no off-by-one, no inverted conditions?
 
-### Memory
-- [ ] No memory leaks (all allocations have a matching free on every code path)
-- [ ] No use-after-free
-- [ ] No unbounded allocation (stack or heap)
-- [ ] Stack usage is reasonable for the target (large local arrays are a red flag)
-- [ ] `malloc`/`new` usage is explicitly justified if present
-
-### Concurrency and ISR Safety
-- [ ] Variables shared between ISR and task context are `volatile`
-- [ ] Multi-byte shared state reads/writes are atomic or protected
-- [ ] No blocking calls in ISR context (no `printf`, no `malloc`, no mutex lock)
-- [ ] No TOCTOU (check-then-act on shared state without holding a lock)
-- [ ] Critical sections are minimal and don't block for long
-- [ ] No priority inversion paths introduced
-
-### Bounds and Overflow
-- [ ] All array accesses are bounds-checked
-- [ ] No unbounded string operations (`strcpy`, `sprintf` → use safe variants or manual bounds)
-- [ ] Integer arithmetic won't overflow silently (especially mixing signed/unsigned, or small types)
-- [ ] All pointer dereferences are validated before use
-- [ ] Bitfield operations don't produce unintended results
-
 ### Error Handling
-- [ ] All return values are checked (especially hardware API calls)
-- [ ] Error paths clean up resources (open handles, acquired locks, allocated memory)
+- [ ] All return values and errors are checked
+- [ ] All error paths clean up resources (open handles, acquired locks, allocated memory, transactions)
 - [ ] Errors are propagated to callers or handled definitively — not silently swallowed
-- [ ] Hardware error conditions (timeout, NAK, NACK, busy) are handled
+- [ ] Failure modes from dependencies are handled
 
-### Firmware-Specific
-- [ ] `volatile` applied correctly to hardware register pointers and ISR-shared variables
-- [ ] Read-modify-write on hardware registers is safe (no race with ISR or hardware)
-- [ ] Watchdog is handled for any long-running operations
-- [ ] Power/reset sequences are not disrupted
-- [ ] Timing assumptions are documented in comments
-- [ ] No busy-wait loops that could starve other tasks or the watchdog
-
-### Code Quality
-- [ ] `const`-correct (non-modified params and pointers are `const`)
-- [ ] Explicit integer types (`uint8_t`, `int32_t`, etc.)
-- [ ] No magic numbers (all constants have names)
-- [ ] Naming is clear and consistent with the rest of the codebase
-- [ ] Comments explain *why*, not just *what*
-- [ ] Hardware-specific behavior is commented (register values, timing, protocol quirks)
-- [ ] No dead code, commented-out code, or TODO left behind without a tracking issue
-
-### Build
-- [ ] Compiles clean with `-Wall -Werror`
-- [ ] No new warnings added
-- [ ] No new external dependencies without justification
-- [ ] Build system (Makefile/CMake/etc.) updated if new files were added
+### Security
+- [ ] Input validated at trust boundaries
+- [ ] No injection vulnerabilities (SQL, command, path traversal, template injection) where applicable
+- [ ] No sensitive data logged, returned in error messages, or stored inappropriately
+- [ ] Authentication and authorization enforced where required
+- [ ] Secrets/credentials not hardcoded
 
 ### Performance
 - [ ] No unnecessary copies of large data structures
-- [ ] Algorithmic complexity is appropriate (O(1) or O(n) is fine; O(n²) needs justification in embedded context)
-- [ ] No unintended cache-hostile patterns (if cache is relevant on target)
+- [ ] Algorithmic complexity is appropriate for expected input size
+- [ ] No unintended blocking in latency-sensitive paths
+- [ ] No N+1 query patterns or unnecessary repeated work
+
+### Code Quality
+- [ ] No magic numbers — all constants have names
+- [ ] Naming is clear and consistent with the rest of the codebase
+- [ ] Comments explain *why*, not just *what*
+- [ ] No dead code, commented-out code, or TODO left behind without a tracking issue
+- [ ] Functions and classes have clear, single responsibilities
+- [ ] Code is readable without deep context
+
+### Design Conformance
+- [ ] Implementation matches design doc
+- [ ] No scope creep — only the agreed changes are present
+- [ ] New abstractions are justified and consistent with existing patterns
+
+### Tests
+- [ ] New code has test coverage
+- [ ] Tests cover edge cases and error paths, not just the happy path
+- [ ] Tests are deterministic and isolated
+- [ ] No test logic that always passes or never actually asserts
+
+### Dependencies
+- [ ] No new dependencies without justification
+- [ ] New dependencies are well-maintained and license-compatible
+- [ ] Build/package files updated correctly if new files or dependencies were added
 
 ---
 
@@ -85,7 +72,7 @@ Before reviewing, read:
 
 For every issue found:
 - **Severity:** critical / major / minor / nit
-- **Location:** file.c:line
+- **Location:** file.ext:line
 - **Description:** What's wrong
 - **Impact:** What breaks if this isn't fixed
 - **Suggestion:** What to do instead

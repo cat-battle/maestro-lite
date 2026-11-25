@@ -4,7 +4,7 @@
 
 Maestro-lite gives you a team of specialized Copilot agents that coordinate through file-based state. One agent decomposes your task, hands it to a designer, who hands it to a coder, who gets reviewed and tested — all tracked in plain markdown files you can read, edit, and version.
 
-Built for firmware engineers who want structured AI-assisted development without giving up control.
+Works for **any domain**: web development, data science, DevOps, firmware, mobile apps — whatever you're building.
 
 ---
 
@@ -17,7 +17,7 @@ You have five agents, each with a specific role:
 | **@maestro** | Orchestrator — accepts tasks, decomposes, assigns, tracks |
 | **@architect** | Design — analyzes code, produces technical designs |
 | **@coder** | Implementation — writes code per the design, nothing more |
-| **@reviewer** | Code review — checks correctness, firmware safety, design conformance |
+| **@reviewer** | Code review — checks correctness, design conformance, security, edge cases |
 | **@tester** | Testing — writes test plans and test code against acceptance criteria |
 
 Agents communicate exclusively through files in `.maestro/`. They share no context directly — each one reads the previous agent's output document and produces the next one.
@@ -40,14 +40,14 @@ In VS Code, open the Copilot Chat panel. For each agent, create a custom agent u
 
 ### 2. Add the Repo to Your Workspace
 
-Add this repo to your VS Code workspace so agents can read and write `.maestro/` files.
+Add this repo (or copy the `.maestro/` directory and `agents/` files) to your VS Code workspace so agents can read and write `.maestro/` files.
 
 ### 3. Start a Task
 
 Switch to `@maestro` in Copilot Chat and describe what you want to do:
 
 ```
-@maestro I need to add I2C error handling to the sensor module. Right now if the sensor hangs, the entire acquisition loop blocks.
+@maestro I need to add pagination to the search results endpoint. Right now it returns all results at once.
 ```
 
 Maestro will read `.maestro/status.md`, decompose the task, present a plan for your approval, and then walk you through the full workflow.
@@ -60,16 +60,16 @@ Maestro will read `.maestro/status.md`, decompose the task, present a plan for y
 Accepts your task, breaks it into subtasks, assigns each to the right agent, and tracks everything in `.maestro/status.md`. Stops for your approval at key checkpoints. Never writes production code.
 
 ### @architect — Design Agent
-Reads the task spec and the existing codebase before proposing anything. Produces a detailed design document that coder can implement without guessing. For firmware: explicitly handles ISR safety, memory constraints, timing, and peripheral dependencies.
+Reads the task spec and the existing codebase before proposing anything. Produces a detailed design document that coder can implement without guessing. References domain-specific playbooks for specialized considerations.
 
 ### @coder — Implementation Agent
-Reads the task spec and design doc, then implements strictly per the design. If the design has gaps, it writes questions and stops — it never guesses. Follows firmware coding standards: const-correct, no dynamic alloc, ISR-safe, defensive error handling.
+Reads the task spec and design doc, then implements strictly per the design. If the design has gaps, it writes questions and stops — it never guesses. Follows project coding standards and applicable playbooks.
 
 ### @reviewer — Code Review Agent
-Reviews against: correctness, design conformance, firmware safety (ISR safety, race conditions, buffer overflows, integer overflow, resource cleanup). Returns a clear PASS / CHANGES_REQUESTED / BLOCKER verdict with specific findings.
+Reviews against: correctness, design conformance, error handling, security, performance, and code quality. Returns a clear PASS / CHANGES_REQUESTED / BLOCKER verdict with specific findings. References playbooks for domain-specific review criteria.
 
 ### @tester — Testing Agent
-Covers happy path, boundary conditions, error handling, edge cases, and firmware-specific scenarios (power failure, concurrent access, timing edge cases). Writes runnable test code if a framework is available; detailed manual procedures if not.
+Covers happy path, boundary conditions, error handling, and edge cases. References domain-specific playbooks for additional test categories. Writes runnable test code if a framework is available; detailed manual procedures if not.
 
 ---
 
@@ -88,9 +88,10 @@ Covers happy path, boundary conditions, error handling, edge cases, and firmware
 │   ├── 001-review.md      ← Reviewer findings
 │   └── 001-tests.md       ← Tester's test plan
 └── playbooks/
-    ├── firmware-change.md ← Full firmware change workflow
-    ├── code-review.md     ← Review checklist
-    └── bug-fix.md         ← Bug fix workflow
+    ├── _template.md           ← Template for creating custom playbooks
+    ├── feature-implementation.md  ← Generic feature workflow
+    ├── code-review.md         ← Generic review checklist
+    └── bug-fix.md             ← Generic bug fix workflow
 ```
 
 ### Task IDs
@@ -103,15 +104,65 @@ Zero-padded three-digit numbers: `001`, `002`, `003`. Never reused. Sub-tasks us
 
 ## Playbooks
 
-Playbooks are step-by-step workflows for common task types. Agents follow the relevant playbook automatically — you can also reference them directly.
+**Playbooks are the customization layer.** The agents are generic — playbooks make them domain-specific.
+
+A playbook is a markdown file in `.maestro/playbooks/` that adds domain-specific steps, checklists, and standards to the standard workflow. Agents check for a relevant playbook and follow it in addition to their core instructions.
+
+### Built-in Playbooks
 
 | Playbook | Use When |
 |----------|----------|
-| `firmware-change.md` | Any change to production firmware |
+| `feature-implementation.md` | Building a new feature from scratch |
 | `code-review.md` | Reviewing any code change |
 | `bug-fix.md` | Fixing a reported defect |
 
-**Adding your own:** Create a new `.md` file in `.maestro/playbooks/`. Maestro will reference it when it's relevant to the task type.
+### Adding Your Own Playbooks
+
+1. Copy `.maestro/playbooks/_template.md` to a new file (e.g., `.maestro/playbooks/my-domain.md`)
+2. Fill in the domain-specific steps for each phase
+3. Tell `@maestro` to reference it: *"Use the web-development playbook for this task"*
+
+See `examples/custom-playbooks/` for complete examples of domain-specific playbooks.
+
+---
+
+## Customization
+
+The key principle: **agents are generic, playbooks are specific.**
+
+You should almost never need to edit the `agents/` files. Instead, write playbooks that add domain-specific guidance on top of the generic workflow.
+
+### How to Customize for Your Domain
+
+**Step 1: Write a domain playbook**
+
+Create `.maestro/playbooks/<your-domain>.md` using the `_template.md` as your starting point. Add:
+- Domain-specific design considerations for `@architect`
+- Coding standards and patterns for `@coder`
+- Domain-specific review checklist items for `@reviewer`
+- Domain-specific test categories for `@tester`
+
+**Step 2: Tell Maestro about it**
+
+When starting a task, mention your playbook:
+> `@maestro Add OAuth login. Follow the web-development playbook.`
+
+Or set it as the default by mentioning it in your task specs.
+
+**Step 3: Extend over time**
+
+As you discover patterns specific to your project, add them to your playbook. The playbooks live in your repo and evolve with your codebase.
+
+### Example Custom Playbooks
+
+See `examples/custom-playbooks/` for ready-to-adapt starting points:
+
+| File | Domain |
+|------|--------|
+| `firmware.md` | Firmware/embedded C/C++ (ISR safety, memory constraints, timing) |
+| `web-development.md` | Web apps (security, API contracts, database migrations, accessibility) |
+
+Copy the most relevant one to `.maestro/playbooks/` and customize it for your project.
 
 ---
 
@@ -120,14 +171,14 @@ Playbooks are step-by-step workflows for common task types. Agents follow the re
 Here's what a typical task looks like:
 
 **1. User → @maestro**
-> "Add watchdog timer kicking to the sensor module."
+> "Add pagination to the search API endpoint."
 
-**2. @maestro** reads status.md, decomposes the task, creates `.maestro/tasks/001-watchdog-sensor.md`, presents the plan.
+**2. @maestro** reads status.md, decomposes the task, creates `.maestro/tasks/001-search-pagination.md`, presents the plan.
 
 **3. User approves the plan.** (Plan Review gate)
 
 **4. @maestro → @architect**
-> "Read tasks/001-watchdog-sensor.md and produce a design."
+> "Read tasks/001-search-pagination.md and produce a design."
 
 **5. @architect** reads the codebase, writes `.maestro/handoffs/001-design.md`, updates status.
 
@@ -152,6 +203,8 @@ Here's what a typical task looks like:
 
 **14. @maestro** presents final summary. **User approves.** (Completion gate) Task closed.
 
+See `examples/sample-task.md` for a fully worked example with all files filled in.
+
 ---
 
 ## Why File-Based State?
@@ -164,21 +217,10 @@ Here's what a typical task looks like:
 
 ---
 
-## Firmware-Specific Design
-
-Maestro-lite was built with embedded/firmware development in mind. Every agent instruction is written for C/C++ on real-time systems:
-
-- Architect explicitly considers ISR safety, memory constraints, timing budgets, peripheral dependencies
-- Coder enforces const-correctness, explicit integer types, no dynamic allocation, volatile where needed
-- Reviewer checks for ISR races, buffer overflows, integer overflow, watchdog starvation
-- Tester covers power failure, concurrent access, timing edge cases, memory boundaries
-
-This isn't a web-dev workflow with "firmware" sprinkled in. It's firmware-first.
-
----
-
 ## See Also
 
-- `examples/sample-task.md` — A complete task flow with all files filled in (watchdog timer example)
+- `examples/sample-task.md` — A complete task flow with all files filled in (API authentication example)
+- `examples/custom-playbooks/` — Domain-specific playbook examples (firmware, web development)
+- `.maestro/playbooks/_template.md` — Template for writing your own playbooks
 - `.github/copilot-instructions.md` — Repo-level instructions loaded automatically by Copilot
 - `agents/` — Agent instruction files for your custom agent definitions
